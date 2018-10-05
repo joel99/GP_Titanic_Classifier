@@ -10,6 +10,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+.pyc
 build/
 develop-eggs/
 dist/
@@ -26,6 +27,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+__pycache__/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -104,3 +106,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# pycharm files
+./idea

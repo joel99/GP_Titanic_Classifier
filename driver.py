@@ -12,6 +12,7 @@ from deap import creator
 from deap import tools
 from deap import gp
 
+
 # Evaluation of individual
 # Note: There is no train, test, just testing of our individuals, we need to maintain all train data and evaluate
 # Consider partial evaluations
@@ -19,17 +20,18 @@ def evalSymbReg(individual, pset, data, labels):
     predictor = gp.compile(expr=individual, pset=pset)
     predictions = 1 * np.asarray([predictor(*person) for person in data])
     # casting to array for printing
-    labels = np.asarray(labels)
+    # labels = np.asarray(labels)
     fp = 0
     fn = 0
-    for pI in range(len(predictions)):
-        if predictions[pI] == 1 and labels[pI] == 0:
+    for pred, label in zip(predictions, labels):
+        if pred == 1 and label == 0:
             fp += 1
-        elif predictions[pI] == 0 and labels[pI] == 1:
+        elif pred == 0 and label == 1:
             fn += 1
     # Better use of np is welcome
     print(fp, fn)
-    return (fp, fn)
+    return fp, fn
+
 
 def main():
     # Import data
@@ -42,16 +44,23 @@ def main():
 
     # Arguments
     random.seed(25)
+    crossover_rate = 0.5
+    mutation_rate = 0.2
 
     input_types = []
-    for i in range(x_train.shape[1]): # multiplication op doesn't work
+    for i in range(x_train.shape[1]):  # multiplication op doesn't work
         input_types.append(float) 
     pset = gp.PrimitiveSetTyped("MAIN", input_types, bool)
-    # We may do better with more logic oriented primitives
-    pset.addPrimitive(np.negative, [float], float)
+    # logic
     pset.addPrimitive(np.logical_not, [bool], bool)
+    pset.addPrimitive(np.logical_and, [bool], bool)  # Demorgan's rule says all logic ops can be made with not & and
     pset.addPrimitive(operator.xor, [bool, bool], bool)
+    # arithmetic
+    pset.addPrimitive(np.negative, [float], float)
     pset.addPrimitive(operator.mul, [float, float], float)
+    pset.addPrimitive(operator.add, [float, float], float)
+    pset.addPrimitive(operator.sub, [float, float], float)
+    # structure
     pset.addPrimitive(if_then_else, [bool, float, float], float)
     pset.addTerminal(3.0, float)
     pset.addTerminal(1, bool)
@@ -63,8 +72,11 @@ def main():
     toolbox.register("compile", gp.compile, pset=pset)
 
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
+    # select
     toolbox.register("select", tools.selTournament, tournsize=3)
+    # crossover
     toolbox.register("mate", gp.cxOnePoint)
+    # mutate
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
     toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
@@ -81,12 +93,13 @@ def main():
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
 
-    a_given_individual = toolbox.population(n=1)[0]
+    a_given_individual = toolbox.individual()
     a_given_individual.fitness.values = toolbox.evaluate(a_given_individual)
 
-    fitnesses = list(map(toolbox.evaluate, pop))
+    # redundant
+    '''fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit
+        ind.fitness.values = fit'''
 
     # Begin the evolution
     for g in gen:
@@ -99,17 +112,17 @@ def main():
 
         # Apply crossover and mutation on the offspring
         for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < 0.5:
+            if random.random() < crossover_rate:
                 toolbox.mate(child1, child2)
                 del child1.fitness.values
                 del child2.fitness.values
 
         for mutant in offspring:
-            if random.random() < 0.2:
+            if random.random() < mutation_rate:
                 toolbox.mutate(mutant)
                 del mutant.fitness.values
 
-        # Evaluate the individuals with an invalid fitness
+        # Evaluate the individuals with an invalid fitness .... define invalid???
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         fitnesses = map(toolbox.evaluate, invalid_ind)
         for ind, fit in zip(invalid_ind, fitnesses):
