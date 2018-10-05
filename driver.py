@@ -53,7 +53,7 @@ def main():
     pset = gp.PrimitiveSetTyped("MAIN", input_types, bool)
     # logic
     pset.addPrimitive(np.logical_not, [bool], bool)
-    pset.addPrimitive(np.logical_and, [bool], bool)  # Demorgan's rule says all logic ops can be made with not & and
+    pset.addPrimitive(np.logical_and, [bool, bool], bool)  # Demorgan's rule says all logic ops can be made with not & and
     pset.addPrimitive(operator.xor, [bool, bool], bool)
     # arithmetic
     pset.addPrimitive(np.negative, [float], float)
@@ -164,8 +164,8 @@ def main():
     plt.scatter(pop_1, pop_2, color='b')
     plt.scatter(hof[:, 0], hof[:, 1], color='r')
     plt.plot(hof[:, 0], hof[:, 1], color='r', drawstyle='steps-post')
-    plt.xlabel("Mean Squared Error")
-    plt.ylabel("Tree Size")
+    plt.xlabel("False Positives")
+    plt.ylabel("False Negatives")
     plt.title("Pareto Front")
     plt.show()
 
