@@ -63,25 +63,6 @@ def load_split_all():
     y_train = train_data[:, 0].astype('int')
     return ((x_train, y_train), (x_test, y_test))
 
-
-def score(clf, data, labels):
-    """
-    calculates the precision and recall for the given classifier on the given set of data and labels
-
-    :param clf: untrained classifier to be evaluated
-    :param data: the dataset used for cross validation
-    :param labels: the correct labels that match with the given data
-    :return: a tuple of the precision and recall scores for the given classifier
-    """
-    kf = KFold(shuffle=False, random_state=0)
-    precision = cross_val_score(clf, data, labels, scoring='precision', cv=kf, n_jobs=-1)
-
-    recall = cross_val_score(clf, data, labels, scoring='recall', cv=5, n_jobs=-1)
-    precision = precision.mean()
-    recall = recall.mean()
-
-    return (precision, recall)
-
 def pareto_dominance_max(ind1, ind2):
     """
     returns true if ind1 dominates ind2 by the metrics that should be maximized
@@ -157,27 +138,7 @@ def generate_min_front(population):
     return generate_front(population, pareto_dominance_min)
 
 def area_under_curve(fitnesses):
-    return np.sum(np.abs(np.diff(fitnesses[:,0]))*fitnesses[:, :-1])
-
-def convert_to_FP_FN(labels, precision, recall):
-    """
-    converts form precision and recall to FP and FN.
-    Since Recall = TP/(TP + FN), TP = Recall * Positives
-    This means we can solve for FN & FP with
-    FN = TP/Recall - TP
-    FP = TP/Precision - TP
-
-    :param labels: the list of numeric labels that the precision and recall metrics came from
-    :param precision: the precision of some classifier on the given labels
-    :param recall: the recall of some classifier on the given labels
-    :return: a tuple containing FP and FN in that order
-    """
-    positives = sum([1 for l in labels if l == 1])
-    tp = int(recall * positives)
-    fn = int(tp / recall) - tp
-    fp = int(tp / precision) - tp
-    return (fp, fn)
-
+    return np.sum(np.abs(np.diff(fitnesses[:,0]))*fitnesses[:-1,1])
 
 """    
     Takes in a classifier and writes predictions to a csv file after 

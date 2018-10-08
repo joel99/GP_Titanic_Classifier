@@ -37,6 +37,13 @@ def main():
     x_train, y_train = load_split_all()[0]
     data = x_train
     labels = y_train
+    num_positives = np.count_nonzero(labels)
+    num_negatives = len(labels) - num_positives
+    # num_positives is max false negatives
+    # num_negatives is max false positives - append these to fitness so we have reliable AuC
+    fn_trivial_fitness = (0, num_positives)
+    fp_trivial_fitness = (num_negatives, 0)
+
     print(x_train.shape)
     creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
@@ -111,14 +118,6 @@ def main():
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
 
-    a_given_individual = toolbox.individual()
-    a_given_individual.fitness.values = toolbox.evaluate(a_given_individual)
-
-    # redundant
-    '''fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit'''
-
     # Begin the evolution
     for g in gen:
         print("-- Generation %i --" % g)
@@ -173,6 +172,7 @@ def main():
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
     hof = np.asarray([ind.fitness.values for ind in hof_pop])
+    hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
     hof = hof[np.argsort(hof[:, 0])]
 
     # Charts
