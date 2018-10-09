@@ -185,7 +185,7 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
+    print(area_under_curve(hof))
     plt.show()
 
-    print(area_under_curve(hof))
 main()
