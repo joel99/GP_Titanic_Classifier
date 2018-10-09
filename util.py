@@ -60,8 +60,8 @@ def load_split_all():
     train_data = pd.DataFrame(train_data)
     train_data = train_data.fillna(train_data.mean())
 
-    # train_data = np.where(pd.isnull(train_data), -1, train_data)
-    # test_data = np.where(pd.isnull(test_data), -1, test_data)
+    train_data = np.where(pd.isnull(train_data), -1, train_data)
+    test_data = np.where(pd.isnull(test_data), -1, test_data)
     x_test = np.where(pd.isnull(test_data), -1, test_data)
     y_test = test_labels
 
