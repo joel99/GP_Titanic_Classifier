@@ -8,6 +8,7 @@ Jeffrey Minowa
 Joshua Reno
 Joel Ye
 """
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import cross_val_score, KFold
@@ -53,7 +54,13 @@ def load_split_all():
     test_data = np.delete(test_data, [2, 7, 9, 10], axis = 1)
 
     # Fill in NaN
-    train_data = np.where(pd.isnull(train_data), -1, train_data)
+    test_data = pd.DataFrame(test_data)
+    test_data = test_data.fillna(test_data.mean())
+
+    train_data = pd.DataFrame(train_data)
+    train_data = train_data.fillna(train_data.mean())
+
+    # train_data = np.where(pd.isnull(train_data), -1, train_data)
     # test_data = np.where(pd.isnull(test_data), -1, test_data)
     x_test = np.where(pd.isnull(test_data), -1, test_data)
     y_test = test_labels
@@ -62,6 +69,11 @@ def load_split_all():
     x_train = train_data[:, 1:].astype('float')
     y_train = train_data[:, 0].astype('int')
     return ((x_train, y_train), (x_test, y_test))
+
+def normalize(x_train, x_largest_in_each_col):
+    for indx, x in enumerate(x_train):
+        for indy, y in enumerate(x_train[indx]):
+            x_train[indx][indy] = y/x_largest_in_each_col[indy]
 
 def pareto_dominance_max(ind1, ind2):
     """
