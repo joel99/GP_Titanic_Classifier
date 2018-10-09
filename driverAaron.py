@@ -128,7 +128,8 @@ def main():
     names = ["eps_lexicase_select", "tournament_select", "NSGA_select", "SPEA_select", "random_select", "best_select",
              "worst_select", "dub_tournament_select", "stochastic_select", "lexicase_select",
              "auto_eps_lexicase_select"]
-    colors = [(i % 1, (i * 2) % 1, (i * 5) % 1) for i in range(len(selects))]
+    size = len(selects)
+    colors = [((i / size) % 1, (i * 3 / size) % 1, (i * 5 / size) % 1) for i in range(size)]
     all_fronts = []
     all_areas = []
 
@@ -144,6 +145,7 @@ def main():
 
     # Main loop
     for select, name in zip(selects, names):
+        random.seed(25)
         gen = range(40)
         avg_list = []
         max_list = []
@@ -227,7 +229,8 @@ def main():
     # save information to a file
     filename = "results/Aaron_select.csv"
     header = "Name, Area\n"
-    file = open(filename, 'a')
+    file = open(filename, 'w')
+    file.write(header)
     for name, area in zip(names, all_areas):
         file.write("%s,%f\n" % (name, area))
     file.close()

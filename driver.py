@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
-from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize
+from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all
 from primitives import if_then_else, is_greater, is_equal_to, relu
 
 from deap import algorithms
@@ -32,13 +32,19 @@ def evalSymbReg(individual, pset, data, labels):
     # Better use of np is welcome
     return fp, fn
 
+
 def main():
     # Import data
     x_train, y_train = load_split_all()[0]
-    x_largest_in_each_col = np.max(x_train, axis=0)
-    normalize(x_train, x_largest_in_each_col)
     data = x_train
     labels = y_train
+    num_positives = np.count_nonzero(labels)
+    num_negatives = len(labels) - num_positives
+    # num_positives is max false negatives
+    # num_negatives is max false positives - append these to fitness so we have reliable AuC
+    fn_trivial_fitness = (0, num_positives)
+    fp_trivial_fitness = (num_negatives, 0)
+
     print(x_train.shape)
     creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
@@ -47,21 +53,21 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
-    max_height = 17
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
-        input_types.append(float) 
+        input_types.append(float)
     pset = gp.PrimitiveSetTyped("MAIN", input_types, bool)
 
     # Essential Primitives
     pset.addPrimitive(is_greater, [float, float], bool)
     pset.addPrimitive(is_equal_to, [float, float], bool)
     pset.addPrimitive(if_then_else, [bool, float, float], float)
-    
+
     pset.addPrimitive(np.logical_not, [bool], bool)
-    pset.addPrimitive(np.logical_and, [bool, bool], bool)  # Demorgan's rule says all logic ops can be made with not & and
-    
+    pset.addPrimitive(np.logical_and, [bool, bool],
+                      bool)  # Demorgan's rule says all logic ops can be made with not & and
+
     pset.addPrimitive(np.negative, [float], float)
     pset.addPrimitive(operator.mul, [float, float], float)
     pset.addPrimitive(operator.add, [float, float], float)
@@ -76,7 +82,7 @@ def main():
 
     # Logic to float
 
-    # Float to logic 
+    # Float to logic
 
     # Logic to logic
     pset.addPrimitive(operator.xor, [bool, bool], bool)
@@ -94,15 +100,16 @@ def main():
 
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
-    toolbox.register("select", tools.selTournament, tournsize=3)
+    # toolbox.register("select", tools.selTournament, tournsize=3)
+    toolbox.register("select", tools.selSPEA2)
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
     toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
 
-    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=max_height))
-    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=max_height))
+    toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
     gen = range(40)
     avg_list = []
@@ -113,14 +120,6 @@ def main():
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
-
-    a_given_individual = toolbox.individual()
-    a_given_individual.fitness.values = toolbox.evaluate(a_given_individual)
-
-    # redundant
-    '''fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit'''
 
     # Begin the evolution
     for g in gen:
@@ -154,28 +153,29 @@ def main():
 
         # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
-        
+
         length = len(pop)
         mean = sum(fits) / length
-        sum2 = sum(x*x for x in fits)
-        std = abs(sum2 / length - mean**2)**0.5
+        sum2 = sum(x * x for x in fits)
+        std = abs(sum2 / length - mean ** 2) ** 0.5
         g_max = max(fits)
         g_min = min(fits)
-    
+
         avg_list.append(mean)
         max_list.append(g_max)
         min_list.append(g_min)
-    
+
         # print("  Min %s" % g_min)
         # print("  Max %s" % g_max)
         # print("  Avg %s" % mean)
         # print("  Std %s" % std)
 
     print("-- End of (successful) evolution --")
-   
+
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
     hof = np.asarray([ind.fitness.values for ind in hof_pop])
+    hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
     hof = hof[np.argsort(hof[:, 0])]
 
     # Charts
@@ -188,7 +188,8 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
+    print(area_under_curve(hof))
     plt.show()
 
-    print(area_under_curve(hof))
+
 main()
