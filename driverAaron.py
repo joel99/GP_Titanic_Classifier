@@ -24,6 +24,7 @@ def evalSymbReg(individual, pset, data, labels):
     # labels = np.asarray(labels)
     fp = 0
     fn = 0
+
     for pred, label in zip(predictions, labels):
         if pred == 1 and label == 0:
             fp += 1
@@ -53,6 +54,10 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
+    tourn_size = 3
+    tourn2_size = 1.5
+    epsilon = 0.1
+
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
@@ -100,7 +105,34 @@ def main():
 
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
-    toolbox.register("select", tools.selTournament, tournsize=3)
+    toolbox.register("tournament_select", tools.selTournament, tournsize=tourn_size)
+    toolbox.register("NSGA_select", tools.selNSGA2)
+    toolbox.register("SPEA_select", tools.selSPEA2)
+    toolbox.register("random_select", tools.selRandom)
+    toolbox.register("best_select", tools.selBest)
+    toolbox.register("worst_select", tools.selWorst)
+    toolbox.register("dub_tournament_select", tools.selDoubleTournament, fitness_size=tourn_size, parsimony_size=tourn2_size, fitness_first=True)
+    toolbox.register("stochastic_select", tools.selStochasticUniversalSampling)  # randomized with random class
+    toolbox.register("dom_tournament_select", tools.selTournamentDCD)
+    toolbox.register("lexicase_select", tools.selLexicase)
+    toolbox.register("auto_eps_lexicase_select", tools.selAutomaticEpsilonLexicase)
+    toolbox.register("eps_lexicase_select", tools.selEpsilonLexicase, epsilon=epsilon)
+    # potentially useful
+    toolbox.register("sort", tools.sortNondominated, first_front_only=True)
+
+    # array of selection methods and list to contain their pareto fronts
+    selects = [toolbox.eps_lexicase_select, toolbox.tournament_select, toolbox.NSGA_select, toolbox.SPEA_select,
+               toolbox.random_select, toolbox.best_select, toolbox.worst_select, toolbox.dub_tournament_select,
+               toolbox.stochastic_select, toolbox.lexicase_select, toolbox.auto_eps_lexicase_select]
+    # not sure how to work dom_tournament_select
+    names = ["eps_lexicase_select", "tournament_select", "NSGA_select", "SPEA_select", "random_select", "best_select",
+             "worst_select", "dub_tournament_select", "stochastic_select", "lexicase_select",
+             "auto_eps_lexicase_select"]
+    colors = [(i % 1, (i * 2) % 1, (i * 5) % 1) for i in range(len(selects))]
+    all_fronts = []
+    all_areas = []
+
+
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
@@ -110,86 +142,96 @@ def main():
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
-    gen = range(40)
-    avg_list = []
-    max_list = []
-    min_list = []
+    # Main loop
+    for select, name in zip(selects, names):
+        gen = range(40)
+        avg_list = []
+        max_list = []
+        min_list = []
 
-    pop = toolbox.population(n=300)
-    fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit
-
-    # Begin the evolution
-    for g in gen:
-        print("-- Generation %i --" % g)
-
-        # Select the next generation individuals
-        offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
-        offspring = list(map(toolbox.clone, offspring))
-
-        # Apply crossover and mutation on the offspring
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < crossover_rate:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
-
-        for mutant in offspring:
-            if random.random() < mutation_rate:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
-
-        # Evaluate the individuals with an invalid fitness .... define invalid???
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+        pop = toolbox.population(n=300)
+        fitnesses = list(map(toolbox.evaluate, pop))
+        for ind, fit in zip(pop, fitnesses):
             ind.fitness.values = fit
 
-        # Replace population
-        pop[:] = offspring
+        # Begin the evolution
+        print("Starting %s" %name)
+        for g in gen:
+            if g % 10 == 0:
+                print("-- Generation %i of %i --" % (g, len(gen)))
 
-        # Gather all the fitnesses in one list and print the stats
-        fits = [ind.fitness.values[0] for ind in pop]
+            # Select the next generation individuals
+            offspring = select(pop, len(pop))
+            # Clone the selected individuals
+            offspring = list(map(toolbox.clone, offspring))
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x * x for x in fits)
-        std = abs(sum2 / length - mean ** 2) ** 0.5
-        g_max = max(fits)
-        g_min = min(fits)
+            # Apply crossover and mutation on the offspring
+            for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                if random.random() < crossover_rate:
+                    toolbox.mate(child1, child2)
+                    del child1.fitness.values
+                    del child2.fitness.values
 
-        avg_list.append(mean)
-        max_list.append(g_max)
-        min_list.append(g_min)
+            for mutant in offspring:
+                if random.random() < mutation_rate:
+                    toolbox.mutate(mutant)
+                    del mutant.fitness.values
 
-        # print("  Min %s" % g_min)
-        # print("  Max %s" % g_max)
-        # print("  Avg %s" % mean)
-        # print("  Std %s" % std)
+            # Evaluate the individuals with an invalid fitness .... define invalid???
+            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+            fitnesses = map(toolbox.evaluate, invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
 
-    print("-- End of (successful) evolution --")
+            # Replace population
+            pop[:] = offspring
 
-    hof_pop = generate_min_front(pop)
-    # Extract fitnesses and sort so HoF draws correctly
-    hof = np.asarray([ind.fitness.values for ind in hof_pop])
-    hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
-    hof = hof[np.argsort(hof[:, 0])]
+            # Gather all the fitnesses in one list and print the stats
+            fits = [ind.fitness.values[0] for ind in pop]
 
-    # Charts
-    pop_1 = [ind.fitness.values[0] for ind in pop]
-    pop_2 = [ind.fitness.values[1] for ind in pop]
+            length = len(pop)
+            mean = sum(fits) / length
+            sum2 = sum(x * x for x in fits)
+            std = abs(sum2 / length - mean ** 2) ** 0.5
+            g_max = max(fits)
+            g_min = min(fits)
 
-    plt.scatter(pop_1, pop_2, color='b')
-    plt.scatter(hof[:, 0], hof[:, 1], color='r')
-    plt.plot(hof[:, 0], hof[:, 1], color='r', drawstyle='steps-post')
+            avg_list.append(mean)
+            max_list.append(g_max)
+            min_list.append(g_min)
+
+            # print("  Min %s" % g_min)
+            # print("  Max %s" % g_max)
+            # print("  Avg %s" % mean)
+            # print("  Std %s" % std)
+
+        print("-- End of (successful) evolution --")
+        # all_fronts.append(toolbox.sort(pop, len(pop))[0])
+        hof_pop = generate_min_front(pop)
+        hof = np.asarray([ind.fitness.values for ind in hof_pop])
+        hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
+        hof = hof[np.argsort(hof[:, 0])]
+        all_fronts.append(hof)
+        all_areas.append(area_under_curve(hof))
+        print("%s: %f" % (name, all_areas[-1]))
+
+    # graph all the pareto fronts for each selection method
+    for front, name, area, color in zip(all_fronts, names, all_areas, colors):
+        plt.scatter(front[:, 0], front[:, 1], color=color, label=name)
+        plt.plot(front[:, 0], front[:, 1], color=color, drawstyle='steps-post')
+        print("%s: %f" % (name, area))
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
+    plt.legend()
+    # save information to a file
+    filename = "results/Aaron_select.csv"
+    header = "Name, Area\n"
+    file = open(filename, 'a')
+    for name, area in zip(names, all_areas):
+        file.write("%s,%f\n" % (name, area))
+    file.close()
     plt.show()
-
-    print(area_under_curve(hof))
 
 
 main()
