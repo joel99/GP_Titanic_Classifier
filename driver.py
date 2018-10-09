@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
-from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all
+from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize
 from primitives import if_then_else, is_greater, is_equal_to, relu
 
 from deap import algorithms
@@ -35,6 +35,8 @@ def evalSymbReg(individual, pset, data, labels):
 def main():
     # Import data
     x_train, y_train = load_split_all()[0]
+    x_largest_in_each_col = np.max(x_train, axis=0)
+    normalize(x_train, x_largest_in_each_col)
     data = x_train
     labels = y_train
     print(x_train.shape)
