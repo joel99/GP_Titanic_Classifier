@@ -14,7 +14,6 @@ from deap import creator
 from deap import tools
 from deap import gp
 
-
 # Evaluation of individual
 # Note: There is no train, test, just testing of our individuals, we need to maintain all train data and evaluate
 # Consider partial evaluations
@@ -25,6 +24,7 @@ def evalSymbReg(individual, pset, data, labels):
     # labels = np.asarray(labels)
     fp = 0
     fn = 0
+
     for pred, label in zip(predictions, labels):
         if pred == 1 and label == 0:
             fp += 1
@@ -35,14 +35,21 @@ def evalSymbReg(individual, pset, data, labels):
 
 
 def main():
+    # Import data
     x_train, y_train = load_split_all()[0]
-
-    # Gets max value in each column
-    x_largest_in_each_col = np.max(x_train, axis=0)
-
-    normalize(x_train, x_largest_in_each_col)
     data = x_train
     labels = y_train
+
+    x_largest_in_each_col = np.max(x_train, axis=0)
+    normalize(x_train, x_largest_in_each_col)
+
+    num_positives = np.count_nonzero(labels)
+    num_negatives = len(labels) - num_positives
+    # num_positives is max false negatives
+    # num_negatives is max false positives - append these to fitness so we have reliable AuC
+    fn_trivial_fitness = (0, num_positives)
+    fp_trivial_fitness = (num_negatives, 0)
+
     print(x_train.shape)
     creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
     creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
@@ -51,6 +58,9 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
+    tourn_size = 3
+    tourn2_size = 1.5
+    epsilon = 0.1
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
@@ -102,93 +112,135 @@ def main():
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
-    toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-    toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+
+    # toolbox.register("mut_uniform", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+    # toolbox.register("mut_shrink", gp.mutShrink)
+    # toolbox.register("mut_node_replace", gp.mutNodeReplacement, pset=pset)
+    # toolbox.register("mut_ephem", gp.mutEphemeral, mode="one")
+    # toolbox.register("mut_insert", gp.mutInsert, pset=pset)
+
+    # mutates = [toolbox.mut_uniform, toolbox.mut_shrink, toolbox.mut_node_replace, toolbox.mut_ephem, toolbox.mut_insert]
+    # names = ["mut_uniform", "mut_shrink", "mut_node_replace", "mut_ephem", "mut_insert"]
+    # mutates = [toolbox.mut_node_replace]
+    # names = ["mut_node_replace"]
+    # colors = [(i % 1, (i * 2) % 1, (i * 5) % 1) for i in range(len(mutates))]
+    all_fronts = []
+    all_areas = []
 
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
-    toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
-    gen = range(40)
-    avg_list = []
-    max_list = []
-    min_list = []
 
-    pop = toolbox.population(n=300)
-    fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit
+    hyper_params = []
+    # for minMut in range(5):
+    #     for maxMut in range(minMut + 1, 5):
+    for minMut in range(5):
+        for maxMut in range(minMut, 5):
+            toolbox.register("expr_mut", gp.genFull, min_=minMut, max_=maxMut)
+            toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
-    a_given_individual = toolbox.individual()
-    a_given_individual.fitness.values = toolbox.evaluate(a_given_individual)
+            hyper_params.append((minMut, maxMut))
+            # for mutate, name in zip(mutates, names):
+            toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
+            gen = range(40)
+            avg_list = []
+            max_list = []
+            min_list = []
 
-    # redundant
-    '''fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit'''
 
-    # Begin the evolution
-    for g in gen:
-        print("-- Generation %i --" % g)
+            pop = toolbox.population(n=300)
+            fitnesses = list(map(toolbox.evaluate, pop))
+            for ind, fit in zip(pop, fitnesses):
+                ind.fitness.values = fit
 
-        # Select the next generation individuals
-        offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
-        offspring = list(map(toolbox.clone, offspring))
 
-        # Apply crossover and mutation on the offspring
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < crossover_rate:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
+            a_given_individual = toolbox.individual()
+            a_given_individual.fitness.values = toolbox.evaluate(a_given_individual)
 
-        for mutant in offspring:
-            if random.random() < mutation_rate:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
+            # redundant
+            '''fitnesses = list(map(toolbox.evaluate, pop))
+            for ind, fit in zip(pop, fitnesses):
+                ind.fitness.values = fit'''
 
-        # Evaluate the individuals with an invalid fitness .... define invalid???
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
+            # Begin the evolution
+            for g in gen:
+                if g % 10 == 0:
+                    print("-- Generation %i of %i --" % (g, len(gen)))
 
-        # Replace population
-        pop[:] = offspring
+                # Select the next generation individuals
+                offspring = toolbox.select(pop, len(pop))
+                # Clone the selected individuals
+                offspring = list(map(toolbox.clone, offspring))
 
-        # Gather all the fitnesses in one list and print the stats
-        fits = [ind.fitness.values[0] for ind in pop]
+                # Apply crossover and mutation on the offspring
+                for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                    if random.random() < crossover_rate:
+                        toolbox.mate(child1, child2)
+                        del child1.fitness.values
+                        del child2.fitness.values
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x * x for x in fits)
-        std = abs(sum2 / length - mean ** 2) ** 0.5
-        g_max = max(fits)
-        g_min = min(fits)
+                for mutant in offspring:
+                    if random.random() < mutation_rate:
+                        toolbox.mutate(mutant)
+                        del mutant.fitness.values
 
-        avg_list.append(mean)
-        max_list.append(g_max)
-        min_list.append(g_min)
+                # Evaluate the individuals with an invalid fitness .... define invalid???
+                invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+                fitnesses = map(toolbox.evaluate, invalid_ind)
+                for ind, fit in zip(invalid_ind, fitnesses):
+                    ind.fitness.values = fit
 
-        # print("  Min %s" % g_min)
-        # print("  Max %s" % g_max)
-        # print("  Avg %s" % mean)
-        # print("  Std %s" % std)
+                # Replace population
+                pop[:] = offspring
 
-    print("-- End of (successful) evolution --")
+                # Gather all the fitnesses in one list and print the stats
+                fits = [ind.fitness.values[0] for ind in pop]
 
-    hof_pop = generate_min_front(pop)
-    # Extract fitnesses and sort so HoF draws correctly
-    hof = np.asarray([ind.fitness.values for ind in hof_pop])
-    hof = hof[np.argsort(hof[:, 0])]
+                length = len(pop)
+                mean = sum(fits) / length
+                sum2 = sum(x * x for x in fits)
+                std = abs(sum2 / length - mean ** 2) ** 0.5
+                g_max = max(fits)
+                g_min = min(fits)
 
-    # Charts
-    pop_1 = [ind.fitness.values[0] for ind in pop]
-    pop_2 = [ind.fitness.values[1] for ind in pop]
+                avg_list.append(mean)
+                max_list.append(g_max)
+                min_list.append(g_min)
 
-    plt.scatter(pop_1, pop_2, color='b')
-    plt.scatter(hof[:, 0], hof[:, 1], color='r')
-    plt.plot(hof[:, 0], hof[:, 1], color='r', drawstyle='steps-post')
+                # print("  Min %s" % g_min)
+                # print("  Max %s" % g_max)
+                # print("  Avg %s" % mean)
+                # print("  Std %s" % std)
+
+            print("-- End of (successful) evolution --")
+            hof_pop = generate_min_front(pop)
+            hof = np.asarray([ind.fitness.values for ind in hof_pop])
+            hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
+            hof = hof[np.argsort(hof[:, 0])]
+            all_fronts.append(hof)
+            all_areas.append(area_under_curve(hof))
+            print("%s: %f" % ((minMut, maxMut), all_areas[-1]))
+
+                # hof_pop = generate_min_front(pop)
+                # # Extract fitnesses and sort so HoF draws correctly
+                # hof = np.asarray([ind.fitness.values for ind in hof_pop])
+                # hof = hof[np.argsort(hof[:, 0])]
+                #
+                # # Charts
+                # pop_1 = [ind.fitness.values[0] for ind in pop]
+                # pop_2 = [ind.fitness.values[1] for ind in pop]
+                #
+                # plt.scatter(pop_1, pop_2, color='b')
+                # plt.scatter(hof[:, 0], hof[:, 1], color='r')
+                # plt.plot(hof[:, 0], hof[:, 1], color='r', drawstyle='steps-post')
+
+    # for front, name, area, color in zip(all_fronts, names, all_areas, colors):
+    #     plt.scatter(front[:, 0], front[:, 1], color=color, label=name)
+    #     plt.plot(front[:, 0], front[:, 1], color=color, drawstyle='steps-post')
+    #     print("%s: %f" % (name, area))
+    for front, area, params in zip(all_fronts, all_areas, hyper_params):
+        plt.scatter(front[:, 0], front[:, 1])
+        plt.plot(front[:, 0], front[:, 1], drawstyle='steps-post')
+        print("%s: %d" % (params, area))
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")

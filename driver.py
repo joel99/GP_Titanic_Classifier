@@ -35,8 +35,8 @@ def evalSymbReg(individual, pset, data, labels):
 def main():
     # Import data
     x_train, y_train = load_split_all()[0]
-    x_largest_in_each_col = np.max(x_train, axis=0)
-    normalize(x_train, x_largest_in_each_col)
+    # x_largest_in_each_col = np.max(x_train, axis=0)
+    # normalize(x_train, x_largest_in_each_col)
     data = x_train
     labels = y_train
     print(x_train.shape)
@@ -99,7 +99,7 @@ def main():
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
-    toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
+    toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=max_height))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=max_height))
