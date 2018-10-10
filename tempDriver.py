@@ -160,8 +160,8 @@ def main():
     # Main loop
     best = (100000000, 0, 0)
     attempt = 1
-    for ts in tourn_sizes:
-        for ar in anneal_rates:
+    for ts in tourn_sizes[0:2]:
+        for ar in anneal_rates[0:2]:
             random.seed(25)
             gen = range(40)
             avg_list = []

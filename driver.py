@@ -207,7 +207,7 @@ def main():
         header = ','
         driver_line = "Driver,"
         for g in gen:
-            header += "%d," % i
+            header += "%d," % g
             driver_line += "%f," % avg_areas[g]
         header += "\n"
         file.write(header)
