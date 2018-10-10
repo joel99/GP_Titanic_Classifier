@@ -108,7 +108,7 @@ def main():
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
     # toolbox.register("select", tools.selTournament, tournsize=3)
-    toolbox.register("select", tools.selSPEA2)
+    toolbox.register("select", tools.selEpsilonLexicase, epsilon=75)
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate

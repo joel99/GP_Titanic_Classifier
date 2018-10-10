@@ -14,6 +14,7 @@ import numpy as np
 from sklearn.model_selection import cross_val_score, KFold
 from sklearn.preprocessing import LabelEncoder
 import csv
+import random
 
 data_dir = 'data/'
 train_fn = 'train.csv'
@@ -169,3 +170,39 @@ def convert_to_csv(clf, train_data, train_label, test_data, clf_name):
     final = np.column_stack((id_column, predictions))
     df = pd.DataFrame(final)
     df.to_csv(clf_name, index=False, header=["PassengerId", "Survived"])
+
+
+def sim_aneal_select(population, k, tourn_size, anneal_rate):
+    """
+    A tournament select style with similarities ot Simulated Annealing.
+    The probability of choosing a random tournament candidate decreases
+    exponentially as the number of selections goes up.
+    Should find a good balance between diversity and performance.
+
+    :param population: the set of individuals to select from
+    :param k: The number of individuals to select
+    :param tourn_size: the size of the tournament rounds
+    :param anneal_rate: the factor to decrease the probability of picking randomly
+    :return: A set of selected individuals
+    """
+    random_rate = 1.0
+    selected = []
+    for i in range(k):
+        tourn = []
+        best = None
+        for j in range(tourn_size):
+            # build list for tournament
+            tourn.append(random.choice(population))
+            # determine best individual
+            if j == 0:
+                best = tourn[-1]
+            elif pareto_dominance_min(tourn[-1], best):
+                best = tourn[-1]
+        # pick randomly with likelihood of random_rate
+        if random.random() > random_rate:
+            selected.append(best)
+        else:
+            selected.append(random.choice(tourn))
+        # update random_rate
+        random_rate *= anneal_rate
+    return selected
