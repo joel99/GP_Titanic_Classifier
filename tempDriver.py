@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 import pandas as pd
 from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, sim_aneal_select
 from primitives import if_then_else, is_greater, is_equal_to, relu
@@ -36,6 +37,7 @@ def evalSymbReg(individual, pset, data, labels):
 
 
 def main():
+    start = time.time()
     # Import data
     x_train, y_train = load_split_all()[0]
     data = x_train
@@ -56,12 +58,13 @@ def main():
     crossover_rate = 0.5
     mutation_rate = 0.2
     tourn_size = 20
-    tourn_sizes = range(2, 21)
+    tourn_sizes = range(2, 31)
     tourn2_size = 1.5
     tourn2_sizes = [1 + i*0.05 for i in range(21)]
     epsilon = 75
     epsilons = [5*i for i in range(60)]
     epsilons.append(500)
+    anneal_rates = [i*0.05 for i in range(20)]
     x = []
     y = []
     c = []
@@ -125,20 +128,20 @@ def main():
     toolbox.register("lexicase_select", tools.selLexicase)
     toolbox.register("auto_eps_lexicase_select", tools.selAutomaticEpsilonLexicase)
     toolbox.register("eps_lexicase_select", tools.selEpsilonLexicase, epsilon=epsilon)
-    toolbox.register("sim_aneal_select", sim_aneal_select, tourn_size=20, aneal_rate=0.95)
+    toolbox.register("sim_aneal_select", sim_aneal_select, tourn_size=20, anneal_rate=0.95)
     # potentially useful
     toolbox.register("sort", tools.sortNondominated, first_front_only=True)
 
     # array of selection methods and list to contain their pareto fronts
     selects = [toolbox.eps_lexicase_select, toolbox.tournament_select, toolbox.NSGA_select, toolbox.SPEA_select,
                toolbox.random_select, toolbox.best_select, toolbox.worst_select, toolbox.dub_tournament_select,
-               toolbox.stochastic_select, toolbox.lexicase_select, toolbox.auto_eps_lexicase_select]
+               toolbox.stochastic_select, toolbox.lexicase_select, toolbox.auto_eps_lexicase_select, toolbox.sim_aneal_select]
     # not sure how to work dom_tournament_select
     names = ["eps_lexicase_select", "tournament_select", "NSGA_select", "SPEA_select", "random_select", "best_select",
              "worst_select", "dub_tournament_select", "stochastic_select", "lexicase_select",
-             "auto_eps_lexicase_select"]
-    select = toolbox.dub_tournament_select
-    name = "dub_tournament_select"
+             "auto_eps_lexicase_select", "sim_anneal_select"]
+    select = toolbox.sim_aneal_select
+    name = "sim_anneal_select"
     size = len(tourn_sizes)
     colors = [((i / size) % 1, (i * 3 / size) % 1, (i * 5 / size) % 1) for i in range(size)]
     all_fronts = []
@@ -155,9 +158,10 @@ def main():
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
     # Main loop
-    best = 0
+    best = (100000000, 0, 0)
+    attempt = 1
     for ts in tourn_sizes:
-        for t2s in tourn2_sizes:
+        for ar in anneal_rates:
             random.seed(25)
             gen = range(40)
             avg_list = []
@@ -170,13 +174,13 @@ def main():
                 ind.fitness.values = fit
 
             # Begin the evolution
-            print("Starting %s with ts = %f\tt2s = %f" % (name, ts, t2s))
+            print("Starting %s with ts = %f\tar = %f" % (name, ts, ar))
             for g in gen:
                 if g % 10 == 0:
                     print("-- Generation %i of %i --" % (g, len(gen)))
 
                 # Select the next generation individuals
-                offspring = select(pop, len(pop), fitness_size=ts, parsimony_size=t2s)
+                offspring = select(pop, len(pop), tourn_size=ts, anneal_rate=ar)
                 # Clone the selected individuals
                 offspring = list(map(toolbox.clone, offspring))
 
@@ -228,14 +232,17 @@ def main():
             hof = hof[np.argsort(hof[:, 0])]
             all_fronts.append(hof)
             all_areas.append(area_under_curve(hof))
-            print("%f, %f: %f" % (ts, t2s, all_areas[-1]))
+            print("Attempt #%d:\t%f, %f: %f" % (attempt, ts, ar, all_areas[-1]))
             x.append(ts)
-            y.append(t2s)
+            y.append(ar)
             c.append(all_areas[-1])
             # keep track of best
-            if best < all_areas[-1]:
-                best = all_areas[-1]
-            print("Best AUC is %f" % best)
+            if best[0] > all_areas[-1]:
+                best = (all_areas[-1], ts, ar)
+            print("Best AUC is\t%f\twith ts = %d and ar = %f" % (best[0], best[1], best[2]))
+            duration = time.time() - start
+            print("Current duration in secinds:\t%f" % duration)
+            attempt += 1
 
     # graph all the pareto fronts for each selection method
     # for front, ts, area, color in zip(all_fronts, tourn_sizes, all_areas, colors):
@@ -247,18 +254,18 @@ def main():
     hb = plt.hexbin(x=x, y=y, C=c, reduce_C_function=np.min, gridsize=30, cmap='inferno')
     #plt.scatter(epsilons, all_areas)
     plt.xlabel("Tournament Size")
-    plt.ylabel("Tournament2 Size")
+    plt.ylabel("Annealing Rate")
     fig.colorbar(hb, ax=axs).set_label("Area Under Curve")
     # plt.clabel("Area Under Curve")
-    plt.title("%s Performance With tourn size and tourn2 size" % name)
+    plt.title("%s Performance With Tournament size and Annealing Rate" % name)
     # plt.legend()
     # save information to a file
-    filename = "results/Aaron_select.csv"
-    header = "dub_tournament_select with changing tournament sizes\nTournament Size, Tournament2 Size, Area\n"
+    filename = "results/Aaron_temp_select.csv"
+    header = "sim_anneal_select with changing tournament size and annealing rate\nTournament Size, Annealing Rate, Area\n"
     file = open(filename, 'w')
     file.write(header)
-    for ts, t2s, area in zip(tourn_sizes, tourn2_sizes, all_areas):
-        file.write("%f,%f,%f\n" % (ts, t2s, area))
+    for ts, ar, area in zip(tourn_sizes, anneal_rates, all_areas):
+        file.write("%f,%f,%f\n" % (ts, ar, area))
     file.close()
     plt.show()
 

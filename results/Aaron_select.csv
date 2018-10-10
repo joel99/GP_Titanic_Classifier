@@ -1,12 +1,6 @@
-Name, Area
-eps_lexicase_select,100853.000000
-tournament_select,63242.000000
-NSGA_select,57607.000000
-SPEA_select,52431.000000
-random_select,53662.000000
-best_select,53029.000000
-worst_select,54212.000000
-dub_tournament_select,104444.000000
-stochastic_select,72671.000000
-lexicase_select,100853.000000
-auto_eps_lexicase_select,55039.000000
+dub_tournament_select with changing tournament sizes
+Tournament Size, Tournament2 Size, Area
+2.000000,1.000000,135339.000000
+3.000000,1.500000,104303.000000
+4.000000,2.000000,115249.000000
+5.000000,2.500000,104444.000000
