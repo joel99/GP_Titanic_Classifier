@@ -115,7 +115,7 @@ def main():
 
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
-    toolbox.register("tournament_select", tools.selTournament, tournsize=tourn_size)
+    toolbox.register("tournament_select", tools.selTournament, tournsize=20)
     toolbox.register("NSGA_select", tools.selNSGA2)
     toolbox.register("SPEA_select", tools.selSPEA2)
     toolbox.register("random_select", tools.selRandom)
@@ -126,7 +126,7 @@ def main():
     toolbox.register("dom_tournament_select", tools.selTournamentDCD)
     toolbox.register("lexicase_select", tools.selLexicase)
     toolbox.register("auto_eps_lexicase_select", tools.selAutomaticEpsilonLexicase)
-    toolbox.register("eps_lexicase_select", tools.selEpsilonLexicase, epsilon=epsilon)
+    toolbox.register("eps_lexicase_select", tools.selEpsilonLexicase, epsilon=75)
     toolbox.register("sim_aneal_select", sim_aneal_select, tourn_size=20, aneal_rate=0.95)
     # potentially useful
     toolbox.register("sort", tools.sortNondominated, first_front_only=True)

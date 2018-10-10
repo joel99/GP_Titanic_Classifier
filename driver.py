@@ -57,7 +57,7 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
-    samples = 10  # set to 10 when generating submission data
+    samples = 1  # set to 10 when generating submission data
     calc_area = True  # set to true when generating submission data
 
     input_types = []
@@ -136,7 +136,6 @@ def main():
     for i in range(samples):  # sample 10 times
         # Begin the evolution
         for g in gen:
-            print("-- Generation %i --" % g)
 
             # Select the next generation individuals
             offspring = toolbox.select(pop, len(pop))
@@ -191,7 +190,12 @@ def main():
                 hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
                 hof = hof[np.argsort(hof[:, 0])]
                 area = area_under_curve(hof)
-                avg_areas[i] += area
+                avg_areas[g] += area
+                info = "\t\tAUC: %f" % area
+            else:
+                info = ""
+            print("-- Generation %i --%s" % (g, info))
+
 
         print("-- End of (successful) evolution --")
 
@@ -199,7 +203,7 @@ def main():
         # average the areas
         avg_areas = [area/samples for area in avg_areas]
         # write to csv
-        file = open("results/driver_results.csv", 'W')
+        file = open("results/driver_results.csv", 'w')
         header = ','
         driver_line = "Driver,"
         for g in gen:
@@ -233,8 +237,9 @@ def main():
     plt.show()
     if calc_area:
         plt.plot(gen, avg_areas, color='g')
-        plt.xlabel("False Positives")
-        plt.ylabel("False Negatives")
+        plt.xlabel("Generation")
+        plt.ylabel("Area Under Curve")
         plt.title("AUC evolution")
+        plt.show()
 
 main()
