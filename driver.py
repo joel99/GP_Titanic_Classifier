@@ -5,7 +5,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize
-from primitives import if_then_else, is_greater, is_equal_to, relu
+from primitives import if_then_else, is_greater, is_equal_to, relu, absolute, safe_division
 
 from deap import algorithms
 from deap import base
@@ -78,7 +78,9 @@ def main():
     pset.addPrimitive(operator.sub, [float, float], float)
 
     # constants
+    pset.addTerminal(2.0, float)    
     pset.addTerminal(10.0, float)
+    pset.addTerminal(25.0, float)
     pset.addTerminal(1, bool)
     pset.addTerminal(0, bool)
 
@@ -93,8 +95,9 @@ def main():
 
     # Float to float
     pset.addPrimitive(relu, [float], float)
-    # pset.addPrimitive(operator.pow, [float, int], float)
     pset.addPrimitive(math.floor, [float], int)
+    pset.addPrimitive(absolute, [float], float)
+    pset.addPrimitive(safe_division, [float, float], float)
 
     toolbox = base.Toolbox()
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
