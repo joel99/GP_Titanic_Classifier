@@ -57,7 +57,7 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
-    samples = 1  # set to 10 when generating submission data
+    samples = 10  # set to 10 when generating submission data
     calc_area = True  # set to true when generating submission data
 
     input_types = []
@@ -127,13 +127,13 @@ def main():
     max_list = []
     min_list = []
 
-    pop = toolbox.population(n=300)
-    fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit
-
     avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
     for i in range(samples):  # sample 10 times
+        # reset population at the start of each trial
+        pop = toolbox.population(n=300)
+        fitnesses = list(map(toolbox.evaluate, pop))
+        for ind, fit in zip(pop, fitnesses):
+            ind.fitness.values = fit
         # Begin the evolution
         for g in gen:
 
