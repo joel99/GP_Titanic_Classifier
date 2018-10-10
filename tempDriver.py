@@ -251,7 +251,7 @@ def main():
     #    print("%s: %f" % (ts, area))
     # plt.plot(kind='scatter', x=labels[0], y=labels[1], c=all_areas, colormap="Purples", s=1000, marker="s")
     fig, axs = plt.subplots()
-    hb = plt.hexbin(x=x, y=y, C=c, reduce_C_function=np.min, gridsize=30, cmap='inferno')
+    hb = plt.hexbin(x=x, y=y, C=c, reduce_C_function=np.min, gridsize=30)
     #plt.scatter(epsilons, all_areas)
     plt.xlabel("Tournament Size")
     plt.ylabel("Annealing Rate")
@@ -264,7 +264,7 @@ def main():
     header = "sim_anneal_select with changing tournament size and annealing rate\nTournament Size, Annealing Rate, Area\n"
     file = open(filename, 'w')
     file.write(header)
-    for ts, ar, area in zip(tourn_sizes, anneal_rates, all_areas):
+    for ts, ar, area in zip(x, y, c):
         file.write("%f,%f,%f\n" % (ts, ar, area))
     file.close()
     plt.show()

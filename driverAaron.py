@@ -5,6 +5,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, sim_aneal_select
 from primitives import if_then_else, is_greater, is_equal_to, relu
 
@@ -36,6 +37,7 @@ def evalSymbReg(individual, pset, data, labels):
 
 
 def main():
+    start = time.time()
     # Import data
     x_train, y_train = load_split_all()[0]
     data = x_train
@@ -155,7 +157,8 @@ def main():
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
     # Main loop
-    best = 0
+    best = (10000000000000,0,0)
+    attempt = 1
     for ts in tourn_sizes:
         for t2s in tourn2_sizes:
             random.seed(25)
@@ -228,14 +231,17 @@ def main():
             hof = hof[np.argsort(hof[:, 0])]
             all_fronts.append(hof)
             all_areas.append(area_under_curve(hof))
-            print("%f, %f: %f" % (ts, t2s, all_areas[-1]))
+            print("Attempt #%d\t%f, %f: %f" % (attempt, ts, t2s, all_areas[-1]))
             x.append(ts)
             y.append(t2s)
             c.append(all_areas[-1])
             # keep track of best
-            if best < all_areas[-1]:
-                best = all_areas[-1]
-            print("Best AUC is %f" % best)
+            if best[0] > all_areas[-1]:
+                best = (all_areas[-1], ts, t2s)
+            print("Best AUC is\t%f\twith ts = %d and t2s = %f" % (best[0], best[1], best[2]))
+            duration = time.time() - start
+            print("Current duration in seconds:\t%f" % duration)
+            attempt += 1
 
     # graph all the pareto fronts for each selection method
     # for front, ts, area, color in zip(all_fronts, tourn_sizes, all_areas, colors):
@@ -257,7 +263,7 @@ def main():
     header = "dub_tournament_select with changing tournament sizes\nTournament Size, Tournament2 Size, Area\n"
     file = open(filename, 'w')
     file.write(header)
-    for ts, t2s, area in zip(tourn_sizes, tourn2_sizes, all_areas):
+    for ts, t2s, area in zip(x, y, c):
         file.write("%f,%f,%f\n" % (ts, t2s, area))
     file.close()
     plt.show()
