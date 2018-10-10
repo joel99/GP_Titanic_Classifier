@@ -57,6 +57,8 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
+    samples = 10  # set to 10 when generating submission data
+    calc_area = True  # set to true when generating submission data
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
@@ -130,56 +132,83 @@ def main():
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
 
-    # Begin the evolution
-    for g in gen:
-        print("-- Generation %i --" % g)
+    avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
+    for i in range(samples):  # sample 10 times
+        # Begin the evolution
+        for g in gen:
+            print("-- Generation %i --" % g)
 
-        # Select the next generation individuals
-        offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
-        offspring = list(map(toolbox.clone, offspring))
+            # Select the next generation individuals
+            offspring = toolbox.select(pop, len(pop))
+            # Clone the selected individuals
+            offspring = list(map(toolbox.clone, offspring))
 
-        # Apply crossover and mutation on the offspring
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < crossover_rate:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
+            # Apply crossover and mutation on the offspring
+            for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                if random.random() < crossover_rate:
+                    toolbox.mate(child1, child2)
+                    del child1.fitness.values
+                    del child2.fitness.values
 
-        for mutant in offspring:
-            if random.random() < mutation_rate:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
+            for mutant in offspring:
+                if random.random() < mutation_rate:
+                    toolbox.mutate(mutant)
+                    del mutant.fitness.values
 
-        # Evaluate the individuals with an invalid fitness .... define invalid???
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
-            ind.fitness.values = fit
+            # Evaluate the individuals with an invalid fitness .... define invalid???
+            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+            fitnesses = map(toolbox.evaluate, invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
 
-        # Replace population
-        pop[:] = offspring
+            # Replace population
+            pop[:] = offspring
 
-        # Gather all the fitnesses in one list and print the stats
-        fits = [ind.fitness.values[0] for ind in pop]
+            # Gather all the fitnesses in one list and print the stats
+            fits = [ind.fitness.values[0] for ind in pop]
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x * x for x in fits)
-        std = abs(sum2 / length - mean ** 2) ** 0.5
-        g_max = max(fits)
-        g_min = min(fits)
+            length = len(pop)
+            mean = sum(fits) / length
+            sum2 = sum(x * x for x in fits)
+            std = abs(sum2 / length - mean ** 2) ** 0.5
+            g_max = max(fits)
+            g_min = min(fits)
 
-        avg_list.append(mean)
-        max_list.append(g_max)
-        min_list.append(g_min)
+            avg_list.append(mean)
+            max_list.append(g_max)
+            min_list.append(g_min)
 
-        # print("  Min %s" % g_min)
-        # print("  Max %s" % g_max)
-        # print("  Avg %s" % mean)
-        # print("  Std %s" % std)
+            # print("  Min %s" % g_min)
+            # print("  Max %s" % g_max)
+            # print("  Avg %s" % mean)
+            # print("  Std %s" % std)
 
-    print("-- End of (successful) evolution --")
+            # find area under curve for population
+            if calc_area:
+                hof_pop = generate_min_front(pop)
+                # Extract fitnesses and sort so HoF draws correctly
+                hof = np.asarray([ind.fitness.values for ind in hof_pop])
+                hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
+                hof = hof[np.argsort(hof[:, 0])]
+                area = area_under_curve(hof)
+                avg_areas[i] += area
+
+        print("-- End of (successful) evolution --")
+
+    if calc_area:
+        # average the areas
+        avg_areas = [area/samples for area in avg_areas]
+        # write to csv
+        file = open("results/driver_results.csv", 'W')
+        header = ','
+        driver_line = "Driver,"
+        for g in gen:
+            header += "%d," % i
+            driver_line += "%f," % avg_areas[g]
+        header += "\n"
+        file.write(header)
+        file.write(driver_line)
+        file.close()
 
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
@@ -197,8 +226,15 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
-    print(area_under_curve(hof))
+    if calc_area:
+        print(avg_areas[-1])
+    else:
+        print(area_under_curve(hof))
     plt.show()
-
+    if calc_area:
+        plt.plot(gen, avg_areas, color='g')
+        plt.xlabel("False Positives")
+        plt.ylabel("False Negatives")
+        plt.title("AUC evolution")
 
 main()
