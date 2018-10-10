@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
-from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all
+from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize
 from primitives import if_then_else, is_greater, is_equal_to, relu
 
 from deap import algorithms
@@ -37,8 +37,8 @@ def main():
     # Import data
     x_train, y_train = load_split_all()[0]
 
-    x_largest_in_each_col = np.max(x_train, axis=0)
-    normalize(x_train, x_largest_in_each_col)
+    # x_largest_in_each_col = np.max(x_train, axis=0)
+    # normalize(x_train, x_largest_in_each_col)
 
     data = x_train
     labels = y_train
@@ -109,7 +109,9 @@ def main():
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
-    toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
+
+    # toolbox.register("expr_mut", gp.genFull, min_=1, max_=2)
+    # toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
     toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
 
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
