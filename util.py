@@ -55,11 +55,11 @@ def load_split_all():
     test_data = np.delete(test_data, [2, 7, 9, 10], axis = 1)
 
     # Fill in NaN
-    test_data = pd.DataFrame(test_data)
-    test_data = test_data.fillna(test_data.mean())
-
-    train_data = pd.DataFrame(train_data)
-    train_data = train_data.fillna(train_data.mean())
+    # test_data = pd.DataFrame(test_data)
+    # test_data = test_data.fillna(test_data.mean())
+    #
+    # train_data = pd.DataFrame(train_data)
+    # train_data = train_data.fillna(train_data.mean())
 
     train_data = np.where(pd.isnull(train_data), -1, train_data)
     test_data = np.where(pd.isnull(test_data), -1, test_data)
