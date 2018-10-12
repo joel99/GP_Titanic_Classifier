@@ -121,7 +121,7 @@ def main():
     toolbox.register("random_select", tools.selRandom)
     toolbox.register("best_select", tools.selBest)
     toolbox.register("worst_select", tools.selWorst)
-    toolbox.register("dub_tournament_select", tools.selDoubleTournament, fitness_size=tourn_size, parsimony_size=tourn2_size, fitness_first=True)
+    toolbox.register("dub_tournament_select", tools.selDoubleTournament, fitness_size=7, parsimony_size=1.35, fitness_first=True)
     toolbox.register("stochastic_select", tools.selStochasticUniversalSampling)  # randomized with random class
     toolbox.register("dom_tournament_select", tools.selTournamentDCD)
     toolbox.register("lexicase_select", tools.selLexicase)
@@ -134,13 +134,14 @@ def main():
     # array of selection methods and list to contain their pareto fronts
     selects = [toolbox.eps_lexicase_select, toolbox.tournament_select, toolbox.NSGA_select, toolbox.SPEA_select,
                toolbox.random_select, toolbox.best_select, toolbox.worst_select, toolbox.dub_tournament_select,
-               toolbox.stochastic_select, toolbox.lexicase_select, toolbox.auto_eps_lexicase_select]
+               toolbox.stochastic_select, toolbox.lexicase_select, toolbox.auto_eps_lexicase_select, toolbox.sim_aneal_select]
     # not sure how to work dom_tournament_select
     names = ["eps_lexicase_select", "tournament_select", "NSGA_select", "SPEA_select", "random_select", "best_select",
              "worst_select", "dub_tournament_select", "stochastic_select", "lexicase_select",
-             "auto_eps_lexicase_select"]
-    select = toolbox.sim_aneal_select
-    name = "dub_tournament_select"
+             "auto_eps_lexicase_select", "sim_aneal_select"]
+    avg_areas = [0 for i in names]
+    #select = toolbox.sim_aneal_select
+    #name = "dub_tournament_select"
     size = len(tourn_sizes)
     colors = [((i / size) % 1, (i * 3 / size) % 1, (i * 5 / size) % 1) for i in range(size)]
     all_fronts = []
@@ -159,9 +160,11 @@ def main():
     # Main loop
     best = (10000000000000,0,0)
     attempt = 1
-    for ts in [25]:
-        for ar in [0.6]:
-            random.seed(25)
+    for i in range(10):
+        for j in range(len(selects)):
+            select = selects[j]
+            name = names[j]
+            # random.seed(25)
             gen = range(40)
             avg_list = []
             max_list = []
@@ -173,7 +176,7 @@ def main():
                 ind.fitness.values = fit
 
             # Begin the evolution
-            print("Starting %s with ts = %f\tar = %f" % (name, ts, ar))
+            print("Starting %s " % name)
             for g in gen:
                 if g % 10 == 0:
                     print("-- Generation %i of %i --" % (g, len(gen)))
@@ -230,15 +233,17 @@ def main():
             hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
             hof = hof[np.argsort(hof[:, 0])]
             all_fronts.append(hof)
-            all_areas.append(area_under_curve(hof))
-            print("Attempt #%d\t%f, %f: %f" % (attempt, ts, ar, all_areas[-1]))
-            x.append(ts)
-            y.append(ar)
-            c.append(all_areas[-1])
+            area = area_under_curve(hof)
+            all_areas.append(area)
+            print("Attempt %s\nAUC:\t%f" % (name, area))
+            avg_areas[j] += area
+            # x.append(ts)
+            # y.append(ar)
+            # c.append(all_areas[-1])
             # keep track of best
-            if best[0] > all_areas[-1]:
+            """if best[0] > all_areas[-1]:
                 best = (all_areas[-1], ts, ar)
-            print("Best AUC is\t%f\twith ts = %d and ar = %f" % (best[0], best[1], best[2]))
+            print("Best AUC is\t%f\twith ts = %d and ar = %f" % (best[0], best[1], best[2]))"""
             duration = time.time() - start
             print("Current duration in seconds:\t%f" % duration)
             attempt += 1
@@ -249,7 +254,14 @@ def main():
     #    plt.plot(front[:, 0], front[:, 1], color=color, drawstyle='steps-post')
     #    print("%s: %f" % (ts, area))
     # plt.plot(kind='scatter', x=labels[0], y=labels[1], c=all_areas, colormap="Purples", s=1000, marker="s")
-    fig, axs = plt.subplots()
+
+    # average areas and print
+    avg_areas = [a/10.0 for a in avg_areas]
+    for name, area in zip(names,avg_areas):
+        print("%s: \t%f" %(name, area))
+
+
+    """fig, axs = plt.subplots()
     hb = plt.hexbin(x=x, y=y, C=c, reduce_C_function=np.min, gridsize=20)
     #plt.scatter(epsilons, all_areas)
     plt.xlabel("Tournament Size")
@@ -266,7 +278,7 @@ def main():
     for ts, ar, area in zip(x, y, c):
         file.write("%f,%f,%f\n" % (ts, ar, area))
     file.close()
-    plt.show()
+    plt.show()"""
 
 
 main()
