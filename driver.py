@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
-from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize
+from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize, sim_aneal_select
 from primitives import if_then_else, is_greater, is_equal_to, relu, absolute, safe_division
 
 from deap import algorithms
@@ -80,9 +80,9 @@ def main():
     pset.addPrimitive(operator.sub, [float, float], float)
 
     # constants
-    pset.addTerminal(2.0, float)    
+    pset.addTerminal(2.0, float)  # added
     pset.addTerminal(10.0, float)
-    pset.addTerminal(25.0, float)
+    pset.addTerminal(25.0, float)  # added
     pset.addTerminal(1, bool)
     pset.addTerminal(0, bool)
 
@@ -98,7 +98,7 @@ def main():
     # Float to float
     pset.addPrimitive(relu, [float], float)
     pset.addPrimitive(math.floor, [float], int)
-    pset.addPrimitive(absolute, [float], float)
+    pset.addPrimitive(absolute, [float], float)  # added
     pset.addPrimitive(safe_division, [float, float], float)
 
     toolbox = base.Toolbox()
@@ -117,7 +117,7 @@ def main():
 
     # toolbox.register("expr_mut", gp.genFull, min_=1, max_=2)
     # toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-    toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)
+    toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)  # added
 
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
