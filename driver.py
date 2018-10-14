@@ -113,7 +113,9 @@ def main():
     #toolbox.register("select", tools.selEpsilonLexicase, epsilon=75) # added
     toolbox.register("select", tools.selWorst) # added
     # crossover
+
     toolbox.register("mate", gp.cxOnePoint)
+    # toolbox.register("mate", gp.cxOnePointLeafBiased, termpb = 0.1) # added
     # mutate
 
     toolbox.register("expr_mut", gp.genFull, min_=1, max_=2)
