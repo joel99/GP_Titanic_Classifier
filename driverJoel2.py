@@ -4,8 +4,8 @@ import math
 
 import numpy as np
 import matplotlib.pyplot as plt
-from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize, sim_aneal_select
-from primitives import if_then_else, is_greater, is_equal_to, relu, absolute, safe_division
+from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all
+from primitives import if_then_else, is_greater, is_equal_to, relu, safe_division, absolute
 
 from deap import algorithms
 from deap import base
@@ -32,14 +32,9 @@ def evalSymbReg(individual, pset, data, labels):
     # Better use of np is welcome
     return fp, fn
 
-
 def main():
     # Import data
     x_train, y_train = load_split_all()[0]
-
-    # x_largest_in_each_col = np.max(x_train, axis=0)
-    # normalize(x_train, x_largest_in_each_col)
-
     data = x_train
     labels = y_train
     num_positives = np.count_nonzero(labels)
@@ -62,47 +57,48 @@ def main():
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
-        input_types.append(float)
+        input_types.append(float) 
     pset = gp.PrimitiveSetTyped("MAIN", input_types, bool)
 
     # Essential Primitives
     pset.addPrimitive(is_greater, [float, float], bool)
     pset.addPrimitive(is_equal_to, [float, float], bool)
     pset.addPrimitive(if_then_else, [bool, float, float], float)
-
+    
     pset.addPrimitive(np.logical_not, [bool], bool)
-    pset.addPrimitive(np.logical_and, [bool, bool],
-                      bool)  # Demorgan's rule says all logic ops can be made with not & and
-
+    pset.addPrimitive(np.logical_and, [bool, bool], bool)  # Demorgan's rule says all logic ops can be made with not & and
+    
     pset.addPrimitive(np.negative, [float], float)
     pset.addPrimitive(operator.mul, [float, float], float)
     pset.addPrimitive(operator.add, [float, float], float)
     pset.addPrimitive(operator.sub, [float, float], float)
 
     # constants
-    # pset.addTerminal(2.0, float)  # added
+    pset.addTerminal(2.0, float)    
     pset.addTerminal(10.0, float)
-    # pset.addTerminal(25.0, float)  # added
-    pset.addTerminal(1, bool)
-    pset.addTerminal(0, bool)
-
+    pset.addTerminal(25.0, float)
+    pset.addTerminal(1, bool) # Necessary for valid compilation
+    pset.addTerminal(0, bool) # Though I'd like to discourage, boosts performance
+    
     # More primitives (for fun/tinkering/reducing verbosity of tree)
 
     # Logic to float
 
-    # Float to logic
+    # Float to logic 
 
     # Logic to logic
     pset.addPrimitive(operator.xor, [bool, bool], bool)
 
     # Float to float
     pset.addPrimitive(relu, [float], float)
+    # pset.addPrimitive(safe_pow, [float, int], float)
     pset.addPrimitive(math.floor, [float], int)
-    # pset.addPrimitive(absolute, [float], float)  # added
+    pset.addPrimitive(absolute, [float], float)
     pset.addPrimitive(safe_division, [float, float], float)
 
+
     toolbox = base.Toolbox()
-    toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
+    toolbox.register("expr", gp.genGrow, pset=pset, min_=1, max_=4)
     toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
@@ -110,15 +106,13 @@ def main():
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
     # toolbox.register("select", tools.selTournament, tournsize=3)
-    #toolbox.register("select", tools.selEpsilonLexicase, epsilon=75) # added
     toolbox.register("select", tools.selWorst) # added
+
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
-
-    toolbox.register("expr_mut", gp.genFull, min_=1, max_=2)
+    toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
     toolbox.register("mutate", gp.mutUniform, expr=toolbox.expr_mut, pset=pset)
-    # toolbox.register("mutate", gp.mutNodeReplacement, pset=pset)  # added
 
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
@@ -127,6 +121,11 @@ def main():
     avg_list = []
     max_list = []
     min_list = []
+
+    pop = toolbox.population(n=300)
+    fitnesses = list(map(toolbox.evaluate, pop))
+    for ind, fit in zip(pop, fitnesses):
+        ind.fitness.values = fit
 
     avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
     for i in range(samples):  # sample 10 times
@@ -137,7 +136,6 @@ def main():
             ind.fitness.values = fit
         # Begin the evolution
         for g in gen:
-
             # Select the next generation individuals
             offspring = toolbox.select(pop, len(pop))
             # Clone the selected individuals
@@ -208,13 +206,15 @@ def main():
         header = ','
         driver_line = "Driver,"
         for g in gen:
-            header += "%d," % g
+            header += "%d," % i
             driver_line += "%f," % avg_areas[g]
         header += "\n"
         file.write(header)
         file.write(driver_line)
         file.close()
 
+    print("-- End of (successful) evolution --")
+   
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
     hof = np.asarray([ind.fitness.values for ind in hof_pop])
@@ -231,6 +231,8 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
+    print(area_under_curve(hof))
+
     if calc_area:
         print(avg_areas[-1])
     else:

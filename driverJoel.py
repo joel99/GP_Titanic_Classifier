@@ -65,6 +65,8 @@ def main():
     random.seed(25)
     crossover_rate = 0.5
     mutation_rate = 0.2
+    samples = 10  # set to 10 when generating submission data
+    calc_area = False  # set to true when generating submission data
 
     input_types = []
     for i in range(x_train.shape[1]):  # multiplication op doesn't work
@@ -105,9 +107,8 @@ def main():
 
     # Float to float
     pset.addPrimitive(relu, [float], float)
-    pset.addPrimitive(absolute, [float], float)
-    pset.addPrimitive(safe_division, [float, float], float)
-    pset.addPrimitive(operator.pow, [float, int], float)
+    # pset.addPrimitive(absolute, [float], float)
+    # pset.addPrimitive(safe_division, [float, float], float)
     pset.addPrimitive(math.floor, [float], int)
 
     # Visualizing aids
@@ -126,9 +127,11 @@ def main():
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
 
-    toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
+    toolbox.register("evaluate", bloatControlEval, pset=pset, data=data, labels=labels)
     # select
-    toolbox.register("select", tools.selTournament, tournsize=3)
+    # toolbox.register("select", tools.selTournament, tournsize=3)
+    toolbox.register("select", tools.selWorst) # added
+
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
@@ -148,11 +151,20 @@ def main():
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
 
+
+    avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
+    # for i in range(samples):  # sample 10 times
+        # reset population at the start of each trial
+    pop = toolbox.population(n=300)
+    fitnesses = list(map(toolbox.evaluate, pop))
+    for ind, fit in zip(pop, fitnesses):
+        ind.fitness.values = fit
     # Begin the evolution
     for g in gen:
-        print("-- Generation %i --" % g)
-        # if g == 25: # activate bloat control
-            # toolbox.register("evaluate", bloatControlEval, pset=pset, data=data, labels=labels)    
+        if g > 30: 
+            toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
+        else:
+            toolbox.register("evaluate", bloatControlEval, pset=pset, data=data, labels=labels)
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
@@ -184,8 +196,8 @@ def main():
 
         length = len(pop)
         mean = sum(fits) / length
-        sum2 = sum(x*x for x in fits)
-        std = abs(sum2 / length - mean**2)**0.5
+        sum2 = sum(x * x for x in fits)
+        std = abs(sum2 / length - mean ** 2) ** 0.5
         g_max = max(fits)
         g_min = min(fits)
 
@@ -197,13 +209,51 @@ def main():
         # print("  Max %s" % g_max)
         # print("  Avg %s" % mean)
         # print("  Std %s" % std)
+
+        # find area under curve for population
+        if calc_area:
+            # Evaluate our true fitnesses (sans bloat control)
+            toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
+            fitnesses = list(map(toolbox.evaluate, pop))
+            for ind, fit in zip(pop, fitnesses):
+                ind.fitness.values = fit
+
+            hof_pop = generate_min_front(pop)
+            # Extract fitnesses and sort so HoF draws correctly
+            hof = np.asarray([ind.fitness.values for ind in hof_pop])
+            hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
+            hof = hof[np.argsort(hof[:, 0])]
+            area = area_under_curve(hof)
+            avg_areas[g] += area
+            info = "\t\tAUC: %f" % area
+        else:
+            info = ""
+        print("-- Generation %i --%s" % (g, info))
+
+
     print("-- End of (successful) evolution --")
 
+    if calc_area:
+        # average the areas
+        avg_areas = [area/samples for area in avg_areas]
+        # write to csv
+        file = open("results/driver_results.csv", 'w')
+        header = ','
+        driver_line = "Driver,"
+        for g in gen:
+            header += "%d," % i
+            driver_line += "%f," % avg_areas[g]
+        header += "\n"
+        file.write(header)
+        file.write(driver_line)
+        file.close()
+
+    
     # Evaluate our true fitnesses (sans bloat control)
-    # toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
-    # fitnesses = list(map(toolbox.evaluate, pop))
-    # for ind, fit in zip(pop, fitnesses):
-        # ind.fitness.values = fit
+    toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
+    fitnesses = list(map(toolbox.evaluate, pop))
+    for ind, fit in zip(pop, fitnesses):
+        ind.fitness.values = fit
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
     hof = np.asarray([ind.fitness.values for ind in hof_pop])
@@ -221,8 +271,19 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
-    plt.show()
     print(area_under_curve(hof))
+
+    if calc_area:
+        print(avg_areas[-1])
+    else:
+        print(area_under_curve(hof))
+    plt.show()
+    if calc_area:
+        plt.plot(gen, avg_areas, color='g')
+        plt.xlabel("Generation")
+        plt.ylabel("Area Under Curve")
+        plt.title("AUC evolution")
+        plt.show()
 
     print("Generating individual graphs")
     for k in range(len(hof_pop)):
