@@ -111,67 +111,99 @@ def main():
     toolbox.decorate("mate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
     toolbox.decorate("mutate", gp.staticLimit(key=operator.attrgetter("height"), max_value=17))
 
-    random.seed(25)
+    samples = 10
+    calc_area = True
     gen = range(40)
     avg_list = []
     max_list = []
     min_list = []
 
-    pop = toolbox.population(n=300)
-    fitnesses = list(map(toolbox.evaluate, pop))
-    for ind, fit in zip(pop, fitnesses):
-        ind.fitness.values = fit
-
-    # Begin the evolution
-    for g in gen:
-        print("-- Generation %i --" % g)
-
-        # Select the next generation individuals
-        offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
-        offspring = list(map(toolbox.clone, offspring))
-
-        # Apply crossover and mutation on the offspring
-        for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < crossover_rate:
-                toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
-
-        for mutant in offspring:
-            if random.random() < mutation_rate:
-                toolbox.mutate(mutant)
-                del mutant.fitness.values
-
-        # Evaluate the individuals with an invalid fitness .... define invalid???
-        invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = map(toolbox.evaluate, invalid_ind)
-        for ind, fit in zip(invalid_ind, fitnesses):
+    avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
+    for i in range(samples):  # sample 10 times
+        # reset population at the start of each trial
+        pop = toolbox.population(n=300)
+        fitnesses = list(map(toolbox.evaluate, pop))
+        for ind, fit in zip(pop, fitnesses):
             ind.fitness.values = fit
+        # Begin the evolution
+        for g in gen:
 
-        # Replace population
-        pop[:] = offspring
+            # Select the next generation individuals
+            offspring = toolbox.select(pop, len(pop))
+            # Clone the selected individuals
+            offspring = list(map(toolbox.clone, offspring))
 
-        # Gather all the fitnesses in one list and print the stats
-        fits = [ind.fitness.values[0] for ind in pop]
+            # Apply crossover and mutation on the offspring
+            for child1, child2 in zip(offspring[::2], offspring[1::2]):
+                if random.random() < crossover_rate:
+                    toolbox.mate(child1, child2)
+                    del child1.fitness.values
+                    del child2.fitness.values
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x * x for x in fits)
-        std = abs(sum2 / length - mean ** 2) ** 0.5
-        g_max = max(fits)
-        g_min = min(fits)
+            for mutant in offspring:
+                if random.random() < mutation_rate:
+                    toolbox.mutate(mutant)
+                    del mutant.fitness.values
 
-        avg_list.append(mean)
-        max_list.append(g_max)
-        min_list.append(g_min)
+            # Evaluate the individuals with an invalid fitness .... define invalid???
+            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
+            fitnesses = map(toolbox.evaluate, invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
 
-        # print("  Min %s" % g_min)
-        # print("  Max %s" % g_max)
-        # print("  Avg %s" % mean)
-        # print("  Std %s" % std)
+            # Replace population
+            pop[:] = offspring
 
-    print("-- End of (successful) evolution --")
+            # Gather all the fitnesses in one list and print the stats
+            fits = [ind.fitness.values[0] for ind in pop]
+
+            length = len(pop)
+            mean = sum(fits) / length
+            sum2 = sum(x * x for x in fits)
+            std = abs(sum2 / length - mean ** 2) ** 0.5
+            g_max = max(fits)
+            g_min = min(fits)
+
+            avg_list.append(mean)
+            max_list.append(g_max)
+            min_list.append(g_min)
+
+            # print("  Min %s" % g_min)
+            # print("  Max %s" % g_max)
+            # print("  Avg %s" % mean)
+            # print("  Std %s" % std)
+
+            # find area under curve for population
+            if calc_area:
+                hof_pop = generate_min_front(pop)
+                # Extract fitnesses and sort so HoF draws correctly
+                hof = np.asarray([ind.fitness.values for ind in hof_pop])
+                hof = np.insert(hof, 0, [fp_trivial_fitness, fn_trivial_fitness], 0)
+                hof = hof[np.argsort(hof[:, 0])]
+                area = area_under_curve(hof)
+                avg_areas[g] += area
+                info = "\t\tAUC: %f" % area
+            else:
+                info = ""
+            print("-- Generation %i --%s" % (g, info))
+
+
+        print("-- End of (successful) evolution --")
+
+    if calc_area:
+        # average the areas
+        avg_areas = [area/samples for area in avg_areas]
+        # write to csv
+        file = open("results/driver_results.csv", 'w')
+        header = ','
+        driver_line = "Driver,"
+        for g in gen:
+            header += "%d," % g
+            driver_line += "%f," % avg_areas[g]
+        header += "\n"
+        file.write(header)
+        file.write(driver_line)
+        file.close()
 
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly
@@ -189,8 +221,17 @@ def main():
     plt.xlabel("False Positives")
     plt.ylabel("False Negatives")
     plt.title("Pareto Front")
-    print(area_under_curve(hof))
+    if calc_area:
+        print(avg_areas[-1])
+    else:
+        print(area_under_curve(hof))
     plt.show()
+    if calc_area:
+        plt.plot(gen, avg_areas, color='g')
+        plt.xlabel("Generation")
+        plt.ylabel("Area Under Curve")
+        plt.title("AUC evolution")
+        plt.show()
 
 
 main()
