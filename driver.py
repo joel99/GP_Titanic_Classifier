@@ -5,6 +5,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from util import pareto_dominance_min, generate_min_front, area_under_curve, load_split_all, normalize, sim_aneal_select
+import util
 from primitives import if_then_else, is_greater, is_equal_to, relu, absolute, safe_division
 
 from deap import algorithms
@@ -36,6 +37,7 @@ def evalSymbReg(individual, pset, data, labels):
 def main():
     # Import data
     x_train, y_train = load_split_all()[0]
+    x_test = load_split_all()[1][0]
 
     # x_largest_in_each_col = np.max(x_train, axis=0)
     # normalize(x_train, x_largest_in_each_col)
@@ -99,7 +101,7 @@ def main():
     pset.addPrimitive(relu, [float], float)
     pset.addPrimitive(math.floor, [float], int)
     # pset.addPrimitive(absolute, [float], float)  # added
-    pset.addPrimitive(safe_division, [float, float], float)
+    # pset.addPrimitive(safe_division, [float, float], float)  # added
 
     toolbox = base.Toolbox()
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=2)
@@ -110,8 +112,7 @@ def main():
     toolbox.register("evaluate", evalSymbReg, pset=pset, data=data, labels=labels)
     # select
     # toolbox.register("select", tools.selTournament, tournsize=3)
-    #toolbox.register("select", tools.selEpsilonLexicase, epsilon=75) # added
-    toolbox.register("select", tools.selWorst) # added
+    toolbox.register("select", sim_aneal_select, tourn_size=25, anneal_rate=0.6)  # added
     # crossover
     toolbox.register("mate", gp.cxOnePoint)
     # mutate
@@ -129,6 +130,7 @@ def main():
     min_list = []
 
     avg_areas = [0 for g in gen]  # contains sum of performances per generation (averaged later)
+    best_pareto_front = (10**10, [])
     for i in range(samples):  # sample 10 times
         # reset population at the start of each trial
         pop = toolbox.population(n=300)
@@ -193,16 +195,21 @@ def main():
                 area = area_under_curve(hof)
                 avg_areas[g] += area
                 info = "\t\tAUC: %f" % area
+                # update best pareto front
+                if area < best_pareto_front[0]:
+                    scores = [ind.fitness.values for ind in hof_pop]
+                    best_pareto_front = (area, hof_pop, scores)
             else:
                 info = ""
             print("-- Generation %i --%s" % (g, info))
 
-
-        print("-- End of (successful) evolution --")
+        print("-- End of (successful) evolution  #%d of %d--" % (i, samples))
+        print("best AUC: %f" % best_pareto_front[0])
 
     if calc_area:
         # average the areas
         avg_areas = [area/samples for area in avg_areas]
+        """ Don't write useless data
         # write to csv
         file = open("results/driver_results.csv", 'w')
         header = ','
@@ -213,7 +220,10 @@ def main():
         header += "\n"
         file.write(header)
         file.write(driver_line)
-        file.close()
+        file.close()"""
+        # write submission data
+        print("BEST AUC: %f" % best_pareto_front[0])
+        util.write_pareto_guesses("results/submission.csv", x_test, pset, best_pareto_front[1], best_pareto_front[2])
 
     hof_pop = generate_min_front(pop)
     # Extract fitnesses and sort so HoF draws correctly

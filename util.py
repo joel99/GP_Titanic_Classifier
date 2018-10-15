@@ -15,6 +15,7 @@ from sklearn.model_selection import cross_val_score, KFold
 from sklearn.preprocessing import LabelEncoder
 import csv
 import random
+from deap import gp
 
 data_dir = 'data/'
 train_fn = 'train.csv'
@@ -206,3 +207,27 @@ def sim_aneal_select(population, k, tourn_size, anneal_rate):
         # update random_rate
         random_rate *= anneal_rate
     return selected
+
+
+def write_pareto_guesses(file_name, data, pset, front, scores):
+    predictions = []
+    col1 = ["FP", "FN"]
+    col1.extend([str(line[0]) for line in data])  # test_x still has passenger #
+    data = [line[1:] for line in data]  # removes passenger # from test data
+    # collect data
+    for individual, score in zip(front, scores):
+        predictor = gp.compile(expr=individual, pset=pset)
+        prediction = [str(score[0]), str(score[1])]
+        pred_num = 1 * np.asarray([predictor(*person) for person in data])
+        prediction.extend([str(p) for p in pred_num])
+        predictions.append(prediction)
+
+    # Write predictions
+    file = open(file_name, "w")
+    for row in range(len(predictions[0])):
+        line = "%s," % col1[row]  # add first column
+        for prediction in predictions:  # add other columns
+            line += "%s," % prediction[row]
+        line += "\n"
+        file.write(line)
+    file.close()
